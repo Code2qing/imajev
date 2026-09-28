@@ -12,7 +12,12 @@ export HF_HOME="${HF_HOME:-/app/.cache/huggingface}"
 # Ensure cache/data directories exist
 mkdir -p "$HF_HOME" /app/artifacts /app/adapters
 
-# 1. Download/verify model & adapter unless explicitly skipped
+# 1. Check if a custom command was passed (e.g. bash, sh, python)
+if [ "$#" -gt 0 ] && [ "${1:0:1}" != "-" ]; then
+    exec "$@"
+fi
+
+# 2. Download/verify model & adapter unless explicitly skipped
 if [ "${SKIP_MODEL_DOWNLOAD:-0}" != "1" ] && [ "${SKIP_MODEL_DOWNLOAD:-false}" != "true" ]; then
     echo "===> Checking and preparing base model and adapter..."
     python scripts/prepare_models.py \
@@ -21,17 +26,13 @@ if [ "${SKIP_MODEL_DOWNLOAD:-0}" != "1" ] && [ "${SKIP_MODEL_DOWNLOAD:-false}" !
         --adapter-dir "${ADAPTER:-adapters/imajev-2b}"
 fi
 
-# 2. Check if a custom command was passed
-if [ "$#" -gt 0 ] && [ "${1:0:1}" != "-" ]; then
-    exec "$@"
-fi
-
 # 3. Default: start imajev server
 echo "===> Starting imajev server on 0.0.0.0:${PORT:-8765}..."
 exec python scripts/playground/server.py \
     --host "0.0.0.0" \
     --port "${PORT:-8765}" \
     --backend "${BACKEND:-torch}" \
+    --dtype "${DTYPE:-auto}" \
     --adapter "${ADAPTER:-adapters/imajev-2b}" \
     --calibration "${CALIBRATION:-adapters/imajev-2b/calibration.json}" \
     --model-name "${MODEL_NAME:-imajev-2b}" \

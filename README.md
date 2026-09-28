@@ -258,9 +258,10 @@ uv sync --extra serve --extra torch
 # 3. 下载/准备 2B 基础模型与适配器
 uv run python scripts/prepare_models.py --model-size 2b
 
-# 4. 启动服务 (PyTorch + PEFT)
+# 4. 启动服务 (PyTorch + PEFT，默认以 bfloat16 加载，大幅节省内存)
 uv run python scripts/playground/server.py \
   --backend torch \
+  --dtype bfloat16 \
   --adapter adapters/imajev-2b \
   --calibration adapters/imajev-2b/calibration.json \
   --model-name imajev-2b \

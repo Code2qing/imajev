@@ -13,6 +13,7 @@ import binascii
 import json
 import logging
 import mimetypes
+import os
 import re
 import sys
 import threading
@@ -109,7 +110,7 @@ class TorchBackend:
     supports_thinking = True
 
     def __init__(self, bundle=BUNDLE, adapter=None, device=None, rotations=1, max_input_tokens=4096, readout_codes=None,
-                 prompt_layout=None, fast=False, graph_lengths=None, merge_lora=False, float32=False):
+                 prompt_layout=None, fast=False, graph_lengths=None, merge_lora=False, float32=False, dtype=None):
         import torch
         from torch_decision import GRAPH_LENGTHS, TorchDecision
         self.torch = torch
@@ -121,7 +122,19 @@ class TorchBackend:
         if not Path(self.bundle["path"]).is_dir():
             raise ValueError("Local model snapshot is missing; run scripts/download_model.py")
         start = perf_counter()
-        dtype = torch.bfloat16 if device == "cuda" and not float32 else torch.float32
+        if dtype is not None and dtype != "auto":
+            dtype_map = {
+                "bfloat16": torch.bfloat16,
+                "float16": torch.float16,
+                "float32": torch.float32,
+            }
+            resolved_dtype = dtype_map.get(dtype, torch.bfloat16)
+        elif float32:
+            resolved_dtype = torch.float32
+        else:
+            resolved_dtype = torch.bfloat16
+        dtype = resolved_dtype
+        self.dtype = str(dtype).replace("torch.", "")
         # --merge-lora loads in float32 so the merge is formed at full precision, then rounds once to the serving dtype.
         # In bf16 that rounding still moves near-tie decisions (and calibration), so it is opt-in; --fast alone keeps
         # the LoRA unmerged and computes exactly the benchmarked function.
@@ -224,7 +237,7 @@ def _warn_layout(trained, served):
 
 
 def build_backend(kind, adapter=None, no_adapter=False, bundle=BUNDLE, rotations=1, max_input_tokens=4096,
-                  readout_codes=None, prompt_layout=None, fast=False, merge_lora=False, float32=False):
+                  readout_codes=None, prompt_layout=None, fast=False, merge_lora=False, float32=False, dtype=None):
     """`auto` prefers MLX with the converted adapter and falls back to torch + the PEFT adapter.
 
     readout_codes None / prompt_layout None follow the adapter (its readout rows; its decision_readout.json layout)."""
@@ -247,7 +260,7 @@ def build_backend(kind, adapter=None, no_adapter=False, bundle=BUNDLE, rotations
     if kind == "torch":
         return TorchBackend(bundle, chosen, rotations=rotations, max_input_tokens=max_input_tokens,
                             readout_codes=readout_codes, prompt_layout=prompt_layout, fast=fast, merge_lora=merge_lora,
-                            float32=float32)
+                            float32=float32, dtype=dtype)
     raise ValueError(f"Unknown backend {kind!r}")
 
 
@@ -504,6 +517,8 @@ def main(argv=None):
     parser.add_argument("--think-model", default="imajev-4b", help="--think-engine vllm: its served model name")
     parser.add_argument("--float32", action="store_true",
                         help="torch only: serve in float32 on CUDA too (a slow reference for checking bf16 serving paths)")
+    parser.add_argument("--dtype", choices=("auto", "bfloat16", "float16", "float32"), default=os.getenv("DTYPE", "auto"),
+                        help="torch data type (default: auto -> bfloat16; float32 requires ~10GB RAM)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args(argv)
@@ -511,11 +526,11 @@ def main(argv=None):
     backend = build_backend(args.backend, args.adapter, args.no_adapter, Path(args.model_bundle), args.rotations,
                             args.max_input_tokens, readout_codes=args.readout_codes,
                             prompt_layout=None if args.prompt_layout == "auto" else args.prompt_layout, fast=args.fast,
-                            merge_lora=args.merge_lora, float32=args.float32)
+                            merge_lora=args.merge_lora, float32=args.float32, dtype=args.dtype)
     if args.model_name:
         backend.model = args.model_name
-    log.info("backend=%s model=%s adapter=%s load_seconds=%.1f readout_codes=%s prompt_layout=%s",
-             backend.name, backend.model, backend.adapter, backend.load_seconds, backend.readout_codes, backend.prompt_layout)
+    log.info("backend=%s model=%s adapter=%s dtype=%s load_seconds=%.1f readout_codes=%s prompt_layout=%s",
+             backend.name, backend.model, backend.adapter, getattr(backend, "dtype", "auto"), backend.load_seconds, backend.readout_codes, backend.prompt_layout)
     calibration = None
     if args.calibration:
         from vision_decision.calibration import TemperatureCalibrator

@@ -13,6 +13,7 @@ services:
     environment:
       - PORT=8765
       - BACKEND=torch
+      - DTYPE=bfloat16
       - MODEL_NAME=imajev-2b
       - MODEL_SIZE=2b
       - HF_ADAPTER_REPO=mohit67890/imajev-2b
