@@ -25,8 +25,7 @@ services:
       # Optional: skip automatic download if models are already prepared
       # - SKIP_MODEL_DOWNLOAD=0
     volumes:
-      # Persist downloaded model metadata, adapters and HF model weights on the host
-      - ./artifacts:/app/artifacts
+      # Persist downloaded adapters and Hugging Face model weights on the host
       - ./adapters:/app/adapters
       - ./.cache/huggingface:/app/.cache/huggingface
     # To enable NVIDIA GPU in Docker, either run with:
