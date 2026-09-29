@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  imajev-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: imajev:latest
+    container_name: imajev-server
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      - PORT=8765
+      - BACKEND=torch
+      - DTYPE=bfloat16
+      - MODEL_NAME=imajev-2b
+      - MODEL_SIZE=2b
+      - HF_ADAPTER_REPO=mohit67890/imajev-2b
+      - ADAPTER=adapters/imajev-2b
+      - CALIBRATION=adapters/imajev-2b/calibration.json
+      # Optional: set Hugging Face mirror if direct connection is slow
+      # - HF_ENDPOINT=https://hf-mirror.com
+      # Optional: Hugging Face access token if required
+      # - HF_TOKEN=your_token_here
+      # Optional: skip automatic download if models are already prepared
+      # - SKIP_MODEL_DOWNLOAD=0
+    volumes:
+      # Persist downloaded adapters and Hugging Face model weights on the host
+      - ./adapters:/app/adapters
+      - ./.cache/huggingface:/app/.cache/huggingface
+    # To enable NVIDIA GPU in Docker, either run with:
+    #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+    # or uncomment the deploy block below:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]

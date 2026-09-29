@@ -254,6 +254,50 @@ The Mac (MLX) weights agree with the GPU run on 97 to 99% of ImajevBench answers
 
 ## Quickstart
 
+### Option A: Docker & Docker Compose (Recommended for Server Deployment)
+
+1. **一键启动（CPU 或默认）**：
+   ```sh
+   docker compose up -d
+   ```
+   容器启动时会自动检查并拉取基础模型（Qwen3.5-2B）与 imajev-2b 适配器权重，模型缓存与配置会自动持久化在 `./artifacts`、`./adapters` 与 `./.cache` 目录中。
+
+2. **启用 NVIDIA GPU 加速**：
+   ```sh
+   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+   ```
+
+3. **查看服务状态与日志**：
+   ```sh
+   docker compose logs -f
+   ```
+
+### Option B: Local Development with `uv`
+
+使用现代 Python 包管理器 `uv` 进行快速依赖安装与服务管理：
+
+```sh
+# 1. 克隆代码库
+git clone https://github.com/mohit67890/imajev && cd imajev
+
+# 2. 使用 uv 安装依赖并同步虚拟环境 (serve + torch)
+uv sync --extra serve --extra torch
+
+# 3. 下载/准备 2B 基础模型与适配器
+uv run python scripts/prepare_models.py --model-size 2b
+
+# 4. 启动服务 (PyTorch + PEFT，默认以 bfloat16 加载，大幅节省内存)
+uv run python scripts/playground/server.py \
+  --backend torch \
+  --dtype bfloat16 \
+  --adapter adapters/imajev-2b \
+  --calibration adapters/imajev-2b/calibration.json \
+  --model-name imajev-2b \
+  --port 8765
+```
+
+### Option C: Manual Virtualenv
+
 ```sh
 git clone https://github.com/mohit67890/imajev && cd imajev
 python3.11 -m venv .venv && source .venv/bin/activate

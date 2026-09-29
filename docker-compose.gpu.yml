@@ -1,0 +1,15 @@
+version: "3.8"
+
+# GPU override overlay for docker-compose.yml
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+
+services:
+  imajev-server:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
